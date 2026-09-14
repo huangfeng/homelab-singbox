@@ -1,0 +1,35 @@
+{
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "RN-XHTTP-in",
+      "listen": "::",
+      "listen_port": 8443,
+      "users": [
+        {
+          "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "alpn": ["h2"],
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "addons.mozilla.org",
+            "server_port": 443
+          },
+          "private_key": "sMgSngQoqibHsNTFImFL6qcCndo0-OYZoc22dfxlKkg",
+          "short_id": ["a1b2c3d4"]
+        }
+      },
+      "transport": {
+        "type": "xhttp",
+        "mode": "stream-up",
+        "path": "/xhttp",
+        "x_padding_bytes": "100-1000"
+      }
+    }
+  ]
+}
