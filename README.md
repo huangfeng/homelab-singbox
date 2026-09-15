@@ -399,6 +399,89 @@ curl -sI --connect-timeout 10 https://dl.google.com
 
 ---
 
+## 第二出口：WARP 直连（AmneziaWG 抗封锁）
+
+> **核心价值**: 完全绕开 148/107。即使两台 VPS 全部不可用，家里仍能出网。
+
+```
+[88.4] --AmneziaWG(jc 混淆, UDP 2408)--> [Cloudflare WARP] --> 互联网
+                                         出口 104.28.x.x (LAX/US)
+```
+
+### 为什么需要 AmneziaWG
+
+普通 WireGuard 到 Cloudflare 的握手包在 GFW 被丢弃（实测：发出 handshake initiation，无任何回包）。
+加入 AmneziaWG junk 参数后握手成功 —— `jc: 4, jmin: 40, jmax: 70`（不要用 120/911 的激进值，反而不通）。
+
+### 关键配置（三个坑，缺一不可）
+
+```json
+{
+  "type": "warp",
+  "tag": "warp-direct",
+  "system": false,
+  "name": "warp1",
+  "amnezia": { "jc": 4, "jmin": 40, "jmax": 70 },
+  "profile": { "detour": "bond-cc", "recreate": true },
+  "address": "162.159.192.1",
+  "port": 2408,
+  "domain_resolver": "dns-warp"
+}
+```
+
+| 坑 | 现象 | 解法 |
+|---|---|---|
+| **1. 注册被 FakeIP 污染** | `Post /reg: write tcp ...->198.18.0.2:443` | `profile.detour` 指向可用代理，注册请求由远端服务器解析域名，本地不查 DNS |
+| **2. 内容 DNS 被劫持** | 只有非代理域名能通，google/github 全超时 | 专用 DoH `{type:https, server:1.1.1.1, detour:"warp-direct"}` — 走隧道内 TCP443，不经过被劫持的 53 端口 |
+| **3. peer 用域名形成循环** | `failed to resolve endpoints: context deadline exceeded` | peer `address` 必须写 IP 字面量 `162.159.192.1`，隧道建立不需要 DNS |
+
+配套 DNS 服务器：
+```json
+{ "tag": "dns-warp", "type": "https", "server": "1.1.1.1",
+  "detour": "warp-direct", "tls": { "enabled": true, "server_name": "cloudflare-dns.com" } }
+```
+
+> ⚠️ `warp` 端点**不支持** `s1/s2/h1-h4` 参数（会 `FATAL: unknown field "s1"` 导致 sing-box 启动失败），只支持 `jc/jmin/jmax` 及 padding/timing 系列。`wireguard` 端点才支持全套。
+
+### 实测数据（2026-09-15）
+
+| 线路 | 吞吐 | 延迟 | 说明 |
+|---|---|---|---|
+| `warp-direct` | **19.18 Mbps** | 3324 ms | 独立出口，绕开所有 VPS |
+| `cc-HY2` | 38.53 Mbps | 415 ms | 主力（经 148） |
+| `bond-cc` | 41.77 Mbps | 393 ms | 默认（148 双协议聚合） |
+
+### 出口地区说明
+
+Cloudflare WARP 出口地区由**账号注册地**决定，不由端点 IP 决定。实测 7 个常见 CF 端点
+（162.159.192.1 / 162.159.193.1 / 188.114.96-99.1 / 162.159.195.1）出口全部为 `104.28.195.192 / colo=LAX / loc=US`。
+**要拿 HK/JP 出口，必须在 HK/JP 的 IP 上注册 WARP 账号**（`profile.detour` 指向 HK/JP 出口即可）。
+
+---
+
+## 第二出口（备选）：AmneziaWG 隧道到 148
+
+```
+[88.4] --AmneziaWG(jc 混淆, UDP 10003)--> [148] --> [WARP] --> 互联网
+```
+
+- 服务端配置: `configs/148-cc/35_cc-awg-endpoint.json`（`wireguard` 端点 + anmezia 全套参数）
+- 148 路由规则: `{"inbound": ["awg-in"], "outbound": "warp-ep"}` → AmneziaWG 进来的流量走 WARP 出口
+- 客户端: 88.4 的 `awg-cc` 端点，`amnezia: {jc:4, jmin:40, jmax:70, s1:0, s2:0, h1:1..h4:4}`
+- ⚠️ 实测吞吐仅 **0.18 Mbps**（瓶颈在 88.4↔148 的 userspace WG 段，148 侧 WARP 单独测有 205 Mbps）
+- ⚠️ 该路径仍依赖 148，价值低于 `warp-direct`
+
+### WARP 服务端能力实测（148）
+
+| 项目 | 结果 |
+|---|---|
+| 148 直连下载 | 342 Mbps |
+| 148 经 WARP 下载 | **205 Mbps** |
+| 88.4 直连 WARP | 19 Mbps |
+| 88.4 经 AmneziaWG→148→WARP | 0.18 Mbps（不可用） |
+
+---
+
 ## 故障排查
 
 ### cache_file FATAL timeout

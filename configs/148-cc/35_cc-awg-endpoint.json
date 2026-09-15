@@ -1,0 +1,31 @@
+{
+  "endpoints": [
+    {
+      "type": "wireguard",
+      "tag": "awg-in",
+      "system": false,
+      "name": "awg0",
+      "mtu": 1380,
+      "address": ["10.20.0.1/24"],
+      "private_key": "uPdC1uBvIN1+1wF/u+s2jAm1EbGyXD873mWCm1RBF1A=",
+      "listen_port": 10003,
+      "peers": [
+        {
+          "public_key": "VPGWlum+0+hhh5g/x722XLYSeFgOEV1PYS0c3UlzSjE=",
+          "allowed_ips": ["10.20.0.2/32"]
+        }
+      ],
+      "amnezia": {
+        "jc": 4,
+        "jmin": 40,
+        "jmax": 70,
+        "s1": 0,
+        "s2": 0,
+        "h1": 1,
+        "h2": 2,
+        "h3": 3,
+        "h4": 4
+      }
+    }
+  ]
+}

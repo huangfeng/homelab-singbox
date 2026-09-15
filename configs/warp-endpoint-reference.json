@@ -1,0 +1,42 @@
+{
+  "log": { "level": "debug" },
+  "dns": {
+    "servers": [
+      { "type": "https", "server": "1.1.1.1", "tag": "doh-warp", "detour": "warp-out",
+        "tls": { "enabled": true, "server_name": "cloudflare-dns.com" } }
+    ],
+    "strategy": "ipv4_only"
+  },
+  "endpoints": [
+    {
+      "type": "wireguard",
+      "tag": "warp-out",
+      "system": false,
+      "name": "warp0",
+      "mtu": 1400,
+      "address": ["172.16.0.2/32"],
+      "private_key": "SIfcvBFV4QaBGjKz2vPgv70w8kjiSOr3agYAhbGA5Es=",
+      "peers": [
+        {
+          "address": "engage.cloudflareclient.com",
+          "port": 2408,
+          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+          "allowed_ips": ["0.0.0.0/0"],
+          "persistent_keepalive_interval": 25
+        }
+      ],
+      "amnezia": { "jc": 4, "jmin": 40, "jmax": 70 },
+      "domain_resolver": "doh-warp"
+    }
+  ],
+  "inbounds": [
+    { "type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 7899 }
+  ],
+  "outbounds": [{ "type": "direct", "tag": "direct" }],
+  "route": {
+    "rules": [{ "ip_is_private": true, "outbound": "direct" }],
+    "final": "warp-out",
+    "default_domain_resolver": "doh-warp",
+    "auto_detect_interface": true
+  }
+}
