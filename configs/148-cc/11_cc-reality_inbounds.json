@@ -1,0 +1,40 @@
+{
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "cc-reality",
+      "listen": "::",
+      "listen_port": 10000,
+      "users": [
+        {
+          "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "addons.mozilla.org",
+            "server_port": 443
+          },
+          "private_key": "6N9tOw3QOntBnALU0Xg-sAdzIYy5-E5LEv8tZXAd53w",
+          "short_id": [
+            "a1b2c3d4"
+          ]
+        }
+      },
+      "multiplex": {
+        "enabled": false,
+        "padding": false,
+        "brutal": {
+          "enabled": false,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
+      }
+    }
+  ]
+}

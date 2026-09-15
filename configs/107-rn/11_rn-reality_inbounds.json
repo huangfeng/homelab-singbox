@@ -2,33 +2,36 @@
   "inbounds": [
     {
       "type": "vless",
-      "tag": "RN-XHTTP-in",
+      "tag": "rn-reality",
       "listen": "::",
-      "listen_port": 8443,
+      "listen_port": 10000,
       "users": [
         {
-          "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2"
+          "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+          "flow": "xtls-rprx-vision"
         }
       ],
       "tls": {
         "enabled": true,
         "server_name": "addons.mozilla.org",
-        "alpn": ["h2"],
         "reality": {
           "enabled": true,
           "handshake": {
             "server": "addons.mozilla.org",
             "server_port": 443
           },
-          "private_key": "sMgSngQoqibHsNTFImFL6qcCndo0-OYZoc22dfxlKkg",
+          "private_key": "kKWeFYkevzKDxaUjHWltihiU6xefJ5zZyVFKuBn8LnY",
           "short_id": ["a1b2c3d4"]
         }
       },
-      "transport": {
-        "type": "xhttp",
-        "mode": "stream-up",
-        "path": "/xhttp",
-        "x_padding_bytes": "100-1000"
+      "multiplex": {
+        "enabled": false,
+        "padding": false,
+        "brutal": {
+          "enabled": false,
+          "up_mbps": 1000,
+          "down_mbps": 1000
+        }
       }
     }
   ]

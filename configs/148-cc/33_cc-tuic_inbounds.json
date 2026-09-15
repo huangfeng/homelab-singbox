@@ -1,0 +1,22 @@
+{
+  "inbounds": [{
+    "type": "tuic",
+    "tag": "cc-tuic",
+    "listen": "::",
+    "listen_port": 10002,
+    "users": [
+      {
+        "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+        "password": "327b1113-049e-4256-8d72-8815643dbb65"
+      }
+    ],
+    "congestion_control": "bbr",
+    "zero_rtt_handshake": true,
+    "tls": {
+      "enabled": true,
+      "alpn": ["h3"],
+      "certificate_path": "/etc/sing-box/cert/cert.pem",
+      "key_path": "/etc/sing-box/cert/private.key"
+    }
+  }]
+}

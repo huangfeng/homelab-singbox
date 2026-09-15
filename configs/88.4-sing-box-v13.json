@@ -1,0 +1,558 @@
+{
+    "log": {
+        "level": "warn",
+        "timestamp": true
+    },
+    "dns": {
+        "servers": [
+            {
+                "tag": "local",
+                "type": "udp",
+                "server": "192.168.88.3",
+                "server_port": 53
+            },
+            {
+                "tag": "fakeip",
+                "type": "fakeip",
+                "inet4_range": "198.18.0.0/15"
+            }
+        ],
+        "rules": [
+            {
+                "domain": [
+                    "router.lan",
+                    "openwrt.lan",
+                    "pve.lan",
+                    "nas.lan"
+                ],
+                "server": "local"
+            },
+            {
+                "ip_is_private": true,
+                "server": "local"
+            },
+            {
+                "rule_set": [
+                    "g-openai",
+                    "g-anthropic",
+                    "g-ai-chat",
+                    "g-google",
+                    "g-youtube",
+                    "g-microsoft",
+                    "g-github",
+                    "g-telegram",
+                    "g-twitter",
+                    "g-netflix",
+                    "g-apple"
+                ],
+                "server": "fakeip"
+            },
+            {
+                "rule_set": [
+                    "g-private"
+                ],
+                "server": "local"
+            },
+            {
+                "rule_set": [
+                    "g-cn"
+                ],
+                "server": "local"
+            }
+        ],
+        "strategy": "ipv4_only",
+        "final": "local"
+    },
+    "inbounds": [
+        {
+            "type": "tun",
+            "tag": "tun-in",
+            "interface_name": "tun0",
+            "address": [
+                "172.19.0.1/30"
+            ],
+            "auto_route": true,
+            "auto_redirect": true,
+            "strict_route": true,
+            "stack": "gvisor",
+            "mtu": 1500
+        },
+        {
+            "type": "http",
+            "tag": "http-in",
+            "listen": "0.0.0.0",
+            "listen_port": 7891
+        }
+    ],
+    "outbounds": [
+        {
+            "type": "selector",
+            "tag": "proxy",
+            "default": "bond-cc",
+            "outbounds": [
+                "bond-cc",
+                "bond-rn",
+                "urltest-main",
+                "cc-Reality",
+                "cc-XHTTP",
+                "cc-HY2",
+                "cc-TUIC",
+                "rn-Reality",
+                "rn-XHTTP",
+                "rn-HY2",
+                "rn-TUIC"
+            ]
+        },
+        {
+            "type": "direct",
+            "tag": "direct"
+        },
+        {
+            "type": "urltest",
+            "tag": "urltest-main",
+            "outbounds": [
+                "cc-HY2",
+                "rn-HY2",
+                "cc-TUIC",
+                "rn-TUIC"
+            ],
+            "url": "http://www.gstatic.com/generate_204",
+            "interval": "30s",
+            "tolerance": 60
+        },
+        {
+            "type": "vless",
+            "tag": "cc-Reality",
+            "server": "148.135.86.162",
+            "server_port": 10000,
+            "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+            "flow": "xtls-rprx-vision",
+            "tls": {
+                "enabled": true,
+                "server_name": "addons.mozilla.org",
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                },
+                "reality": {
+                    "enabled": true,
+                    "public_key": "DCbnS4mIPc1W2-wI0MGHhykwzf2nVuZvBadErSE6MxU",
+                    "short_id": "a1b2c3d4"
+                }
+            }
+        },
+        {
+            "type": "vless",
+            "tag": "cc-XHTTP",
+            "server": "148.135.86.162",
+            "server_port": 8443,
+            "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+            "tls": {
+                "enabled": true,
+                "server_name": "addons.mozilla.org",
+                "alpn": [
+                    "h2"
+                ],
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                },
+                "reality": {
+                    "enabled": true,
+                    "public_key": "WjI3RtUeYBHCKhdv96xfN8FT4yWux2RU_RMoq2zSDXc",
+                    "short_id": "a1b2c3d4"
+                }
+            },
+            "transport": {
+                "type": "xhttp",
+                "mode": "stream-up",
+                "path": "/xhttp",
+                "x_padding_bytes": "100-1000"
+            }
+        },
+        {
+            "type": "hysteria2",
+            "tag": "cc-HY2",
+            "server": "148.135.86.162",
+            "server_port": 10001,
+            "password": "327b1113-049e-4256-8d72-8815643dbb65",
+            "up_mbps": 200,
+            "down_mbps": 500,
+            "tls": {
+                "enabled": true,
+                "insecure": true,
+                "alpn": [
+                    "h3"
+                ],
+                "server_name": "addons.mozilla.org"
+            }
+        },
+        {
+            "type": "tuic",
+            "tag": "cc-TUIC",
+            "server": "148.135.86.162",
+            "server_port": 10002,
+            "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+            "password": "327b1113-049e-4256-8d72-8815643dbb65",
+            "congestion_control": "bbr",
+            "zero_rtt_handshake": true,
+            "udp_relay_mode": "native",
+            "tls": {
+                "enabled": true,
+                "insecure": true,
+                "alpn": [
+                    "h3"
+                ],
+                "server_name": "addons.mozilla.org"
+            }
+        },
+        {
+            "type": "bond",
+            "tag": "bond-cc",
+            "outbounds": [
+                {
+                    "outbound": {
+                        "type": "hysteria2",
+                        "server": "148.135.86.162",
+                        "server_port": 10081,
+                        "password": "327b1113-049e-4256-8d72-8815643dbb65",
+                        "up_mbps": 200,
+                        "down_mbps": 500,
+                        "tls": {
+                            "enabled": true,
+                            "insecure": true,
+                            "alpn": [
+                                "h3"
+                            ],
+                            "server_name": "addons.mozilla.org"
+                        }
+                    },
+                    "download_ratio": 50,
+                    "upload_ratio": 50
+                },
+                {
+                    "outbound": {
+                        "type": "tuic",
+                        "server": "148.135.86.162",
+                        "server_port": 10082,
+                        "uuid": "327b1113-049e-4256-8d72-8815643dbb65",
+                        "password": "327b1113-049e-4256-8d72-8815643dbb65",
+                        "congestion_control": "bbr",
+                        "zero_rtt_handshake": true,
+                        "tls": {
+                            "enabled": true,
+                            "insecure": true,
+                            "alpn": [
+                                "h3"
+                            ],
+                            "server_name": "addons.mozilla.org"
+                        }
+                    },
+                    "download_ratio": 50,
+                    "upload_ratio": 50
+                }
+            ]
+        },
+        {
+            "type": "vless",
+            "tag": "rn-Reality",
+            "server": "107.174.27.207",
+            "server_port": 10000,
+            "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+            "flow": "xtls-rprx-vision",
+            "tls": {
+                "enabled": true,
+                "server_name": "addons.mozilla.org",
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                },
+                "reality": {
+                    "enabled": true,
+                    "public_key": "TU4gTCw7Ba9ZtclTKUnl9FDRcJYANyIpCVfgfKPtKQk",
+                    "short_id": "a1b2c3d4"
+                }
+            }
+        },
+        {
+            "type": "vless",
+            "tag": "rn-XHTTP",
+            "server": "107.174.27.207",
+            "server_port": 8443,
+            "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+            "tls": {
+                "enabled": true,
+                "server_name": "addons.mozilla.org",
+                "alpn": [
+                    "h2"
+                ],
+                "utls": {
+                    "enabled": true,
+                    "fingerprint": "chrome"
+                },
+                "reality": {
+                    "enabled": true,
+                    "public_key": "sSd8pr2G9jBWX9OsTAaE2yPk9U0FjPnrWesID7tCn08",
+                    "short_id": "a1b2c3d4"
+                }
+            },
+            "transport": {
+                "type": "xhttp",
+                "mode": "stream-up",
+                "path": "/xhttp",
+                "x_padding_bytes": "100-1000"
+            }
+        },
+        {
+            "type": "hysteria2",
+            "tag": "rn-HY2",
+            "server": "107.174.27.207",
+            "server_port": 10001,
+            "password": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+            "up_mbps": 200,
+            "down_mbps": 500,
+            "tls": {
+                "enabled": true,
+                "insecure": true,
+                "alpn": [
+                    "h3"
+                ],
+                "server_name": "addons.mozilla.org"
+            }
+        },
+        {
+            "type": "tuic",
+            "tag": "rn-TUIC",
+            "server": "107.174.27.207",
+            "server_port": 10002,
+            "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+            "password": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+            "congestion_control": "bbr",
+            "zero_rtt_handshake": true,
+            "udp_relay_mode": "native",
+            "tls": {
+                "enabled": true,
+                "insecure": true,
+                "alpn": [
+                    "h3"
+                ],
+                "server_name": "addons.mozilla.org"
+            }
+        },
+        {
+            "type": "bond",
+            "tag": "bond-rn",
+            "outbounds": [
+                {
+                    "outbound": {
+                        "type": "hysteria2",
+                        "server": "107.174.27.207",
+                        "server_port": 10081,
+                        "password": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+                        "up_mbps": 200,
+                        "down_mbps": 500,
+                        "tls": {
+                            "enabled": true,
+                            "insecure": true,
+                            "alpn": [
+                                "h3"
+                            ],
+                            "server_name": "addons.mozilla.org"
+                        }
+                    },
+                    "download_ratio": 50,
+                    "upload_ratio": 50
+                },
+                {
+                    "outbound": {
+                        "type": "tuic",
+                        "server": "107.174.27.207",
+                        "server_port": 10082,
+                        "uuid": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+                        "password": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2",
+                        "congestion_control": "bbr",
+                        "zero_rtt_handshake": true,
+                        "tls": {
+                            "enabled": true,
+                            "insecure": true,
+                            "alpn": [
+                                "h3"
+                            ],
+                            "server_name": "addons.mozilla.org"
+                        }
+                    },
+                    "download_ratio": 50,
+                    "upload_ratio": 50
+                }
+            ]
+        },
+        {
+            "type": "block",
+            "tag": "block"
+        }
+    ],
+    "route": {
+        "auto_detect_interface": true,
+        "default_domain_resolver": "fakeip",
+        "rule_set": [
+            {
+                "tag": "g-private",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-private.srs"
+            },
+            {
+                "tag": "g-cn",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-cn.srs"
+            },
+            {
+                "tag": "g-openai",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-openai.srs"
+            },
+            {
+                "tag": "g-anthropic",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-anthropic.srs"
+            },
+            {
+                "tag": "g-ai-chat",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-category-ai-chat.srs"
+            },
+            {
+                "tag": "g-google",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-google.srs"
+            },
+            {
+                "tag": "g-youtube",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-youtube.srs"
+            },
+            {
+                "tag": "g-microsoft",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-microsoft.srs"
+            },
+            {
+                "tag": "g-github",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-github.srs"
+            },
+            {
+                "tag": "g-telegram",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-telegram.srs"
+            },
+            {
+                "tag": "g-twitter",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-twitter.srs"
+            },
+            {
+                "tag": "g-netflix",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-netflix.srs"
+            },
+            {
+                "tag": "g-apple",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geosite-apple.srs"
+            },
+            {
+                "tag": "gi-cn",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geoip-cn.srs"
+            },
+            {
+                "tag": "gi-private",
+                "type": "local",
+                "format": "binary",
+                "path": "/mnt/emmc-data/sing-box/rules/geoip-private.srs"
+            }
+        ],
+        "rules": [
+            {
+                "ip_cidr": [
+                    "198.18.0.0/15"
+                ],
+                "action": "resolve"
+            },
+            {
+                "protocol": "dns",
+                "outbound": "direct"
+            },
+            {
+                "ip_is_private": true,
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                    "g-private"
+                ],
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                    "gi-private"
+                ],
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                    "g-openai",
+                    "g-anthropic",
+                    "g-ai-chat",
+                    "g-google",
+                    "g-youtube",
+                    "g-microsoft",
+                    "g-github",
+                    "g-telegram",
+                    "g-twitter",
+                    "g-netflix",
+                    "g-apple"
+                ],
+                "outbound": "proxy"
+            },
+            {
+                "rule_set": [
+                    "g-cn"
+                ],
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                    "gi-cn"
+                ],
+                "outbound": "direct"
+            }
+        ],
+        "final": "direct"
+    },
+    "experimental": {
+        "cache_file": {
+            "enabled": true,
+            "path": "/tmp/sing-box/cache.db",
+            "store_fakeip": true
+        },
+        "clash_api": {
+            "external_controller": "0.0.0.0:9090",
+            "external_ui": "/www/clash-dashboard"
+        }
+    }
+}

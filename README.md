@@ -41,27 +41,27 @@
     ├── route: action=resolve (FakeIP 反查域名)
     ├── outbounds:
     │   ├── proxy (selector) ← Clash 面板可切换
-    │   │   ├── fallback-vps
-    │   │   ├── HK-XHTTP (VLESS XHTTP → 148.135.86.162:8443)
-    │   │   ├── RN-XHTTP (VLESS XHTTP → 107.174.27.207:8443)
-    │   │   ├── bond-main (负载均衡 148+107)
-    │   │   ├── bond-hk (负载均衡 148 为主)
-    │   │   ├── urltest-main (HK 选优)
-    │   │   ├── RN-HY2 / RN-TUIC / HK-HY2 / HK-TUIC
-    │   │   └── xhttp-fallback
+    │   │   ├── bond-cc  (HY2+TUIC 聚合 → 148)
+    │   │   ├── bond-rn  (HY2+TUIC 聚合 → 107)
+    │   │   ├── urltest-main (cc/rn 的 HY2+TUIC 自动选优)
+    │   │   ├── cc-Reality :10000  / cc-XHTTP :8443
+    │   │   ├── cc-HY2 :10001      / cc-TUIC :10002
+    │   │   ├── rn-Reality :10000  / rn-XHTTP :8443
+    │   │   └── rn-HY2 :10001      / rn-TUIC :10002
     │   ├── direct
     │   └── block
-    └── Clash API: 127.0.0.1:9090 → NPM 反代 clash.huangs.online
+    └── Clash API: 0.0.0.0:9090 → NPM 反代 clash.huangs.online
 
-[148 VPS — sing-box 服务端]
-    ├── Reality (XTLS-Hidden) :443
-    ├── XHTTP inbound :8443 (VLESS)
-    ├── Hysteria2 inbound
-    ├── TUIC inbound
-    └── Bond outbound (负载均衡)
+[148 CloudCone — sing-box 服务端]  (前缀 cc-)
+    ├── cc-reality  VLESS+Vision+Reality  :10000/TCP
+    ├── cc-xhttp    VLESS+XHTTP+Reality   :8443/TCP
+    ├── cc-hy2      Hysteria2             :10001/UDP
+    ├── cc-tuic     TUIC (BBR/0-RTT)      :10002/UDP
+    └── cc-bond     Bond (HY2+TUIC)       :10081-10082/UDP
 
-[107 VPS — sing-box 服务端]
-    └── 同 148
+[107 RackNerd — sing-box 服务端]  (前缀 rn-，端口与 148 完全一致)
+    └── rn-reality / rn-xhttp / rn-hy2 / rn-tuic / rn-bond
+        (realm 中继已停用，释放 10000-10011 端口段)
 ```
 
 ---
@@ -92,8 +92,34 @@ curl http://192.168.88.4:9090/proxies
 | 文件 | 说明 |
 |---|---|
 | `/etc/sing-box-config.json` | 88.4 当前运行配置 |
-| `/root/sing-box-config-88.4-20260914-v12-final.txt` | 备份（最终稳定版） |
-| `/etc/sing-box/conf/31_xhttp_inbounds.json` | 148/107 XHTTP inbound |
+| `/root/sing-box-config-88.4-20260914-v12-final.txt` | 备份（v12 稳定版） |
+| `configs/88.4-sing-box-v13.json` | 88.4 统一端口版（cc-*/rn-* 命名） |
+| `configs/148-cc/*.json` | 148 (CloudCone) 全部 inbound |
+| `configs/107-rn/*.json` | 107 (RackNerd) 全部 inbound |
+
+---
+
+## 统一端口方案（cc-* / rn-*）
+
+**目标**: 148 与 107 使用**完全相同的端口与协议模板**，仅标签前缀和域名不同，便于统一调优与故障互换。
+
+| 协议 | 端口 | 传输 | 148 标签 | 107 标签 |
+|---|---|---|---|---|
+| Reality (VLESS+Vision) | **10000/TCP** | TLS 伪装 | `cc-reality` | `rn-reality` |
+| XHTTP (VLESS) | **8443/TCP** | Reality + XHTTP stream-up | `cc-xhttp` | `rn-xhttp` |
+| Hysteria2 | **10001/UDP** | QUIC/h3 | `cc-hy2` | `rn-hy2` |
+| TUIC | **10002/UDP** | QUIC/h3, BBR, 0-RTT | `cc-tuic` | `rn-tuic` |
+| Bond 聚合 | **10081+10082/UDP** | HY2+TUIC 双路 | `cc-bond` | `rn-bond` |
+
+**命名约定**: `cc-` = CloudCone (148.135.86.162)，`rn-` = RackNerd (107.174.27.207)。客户端出站标签与之同名，Clash 面板可直接辨识。
+
+| 域名 | 指向 | 用途 |
+|---|---|---|
+| `cc.huangs.online` | 148.135.86.162 (DNS-only) | 148 入口（改 IP 免改客户端） |
+| `rn.huangs.online` | 107.174.27.207 (DNS-only) | 107 入口 |
+| `cc6.huangs.online` | 2607:f130:0:10c::12d (AAAA) | 148 IPv6 备用入口 |
+
+> ⚠️ 这两个子域名**必须 DNS-only（灰云）**。`*.huangs.online` 通配是 Cloudflare Tunnel 橙云 CNAME，橙云只代理 80/443 且不转发 UDP，会直接破坏 Reality/Hysteria2/TUIC。
 
 ---
 
@@ -434,6 +460,52 @@ killall -9 sing-box; sleep 3; ip link del tun0; sleep 1
 /usr/bin/sing-box run -c /etc/sing-box-config.json
 ```
 
+### Reality 认证失败（processed invalid connection）
+
+**症状**: 客户端 TLS 阶段被 RST，服务端 `box.log` 出现：
+```
+ERROR inbound/vless[cc-reality]: TLS handshake: REALITY: processed invalid connection
+```
+
+**根因**: 客户端 `tls.reality.public_key` 与服务端 `reality.private_key` 不是同一对密钥。
+
+**解决**: 由服务端私钥派生公钥（见附录 Python 片段）后写入客户端，服务端与客户端 `short_id` 也要一致。
+
+**验证**: `curl -x http://192.168.88.4:7891 https://www.gstatic.com/generate_204` 应返回 204。
+
+### 服务端端口被 realm 占用（107）
+
+**症状**: `FATAL start inbound/vless[rn-reality]: listen tcp 0.0.0.0:10000: bind: address already in use`
+
+**原因**: 107 上的 `realm`(zhboner/realm) 中继占用了 10000-10011、10022、30281-30282。
+
+**处置**（2026-09-15 已执行，用户确认 realm 不再需要）:
+```bash
+systemctl stop realm && systemctl disable realm
+killall -9 realm          # systemd 停止后可能残留第二个实例
+cp /etc/realm.json /root/realm-disabled-20260915/   # 配置已备份
+```
+
+### cache_file 初始化超时（服务端）
+
+**症状**: `FATAL start service: initialize cache-file: timeout`
+
+**根因**: bbolt 对 `/etc/sing-box/cache.db` 加排他锁；**旧 sing-box 进程未退出仍持有锁**，新实例 5s 后超时。
+
+**解决**:
+```bash
+systemctl stop sing-box; killall -9 sing-box   # 确认 0 个残留进程
+ps aux | grep '[s]ing-box run'
+systemctl start sing-box
+```
+
+> 注意 `killall` 对已 `nohup` 启动的实例可能失效，必要时 `kill -9 <PID>`。
+
+### 客户端标签命名规范
+
+出站标签统一 `cc-*`(148) / `rn-*`(107)，与服务端 inbound 标签一一对应（`cc-reality` / `cc-xhttp` / `cc-hy2` / `cc-tuic` / `cc-bond`）。
+改名时必须同步更新 `proxy` selector 的 `outbounds` 列表与 `default`，否则 Clash 面板切不动节点。
+
 ### XHTTP inbound 不监听
 
 **症状**: `netstat` 看不到 8443 端口
@@ -508,11 +580,11 @@ sing-box run -C /etc/sing-box/conf/
 
 | 文件 | 说明 |
 |---|---|
-| `configs/88.4-sing-box-v12.json` | 88.4 最终配置 |
-| `configs/148-xhttp-inbound.json` | 148 XHTTP inbound |
-| `configs/107-xhttp-inbound.json` | 107 XHTTP inbound |
-| `configs/singbox-watchdog.sh` | 看门狗脚本 |
-| `configs/yacd-deploy.sh` | yacd Dashboard 部署脚本 |
+| `configs/88.4-sing-box-v13.json` | 88.4 客户端最终配置（cc-*/rn-* 统一命名） |
+| `configs/88.4-sing-box-v12.json` | 上一版（HK-*/RN-* 命名），回滚用 |
+| `configs/148-cc/` | 148 全部 inbound（cc-*） |
+| `configs/107-rn/` | 107 全部 inbound（rn-*） |
+| `scripts/singbox-watchdog.sh` | 看门狗脚本（当前未启用） |
 
 ### 关键日志
 
@@ -545,14 +617,32 @@ curl -X PUT http://192.168.88.4:9090/proxies/proxy \
   -d '{"name":"HK-XHTTP"}'
 ```
 
-### Reality Keypair 参考
+### Reality Keypair 参考（2026-09-15 实测校验）
 
-| VPS | PrivateKey | PublicKey |
+| 用途 | PrivateKey（服务端） | PublicKey（客户端） |
 |---|---|---|
-| 148 | `eAQt0PPh2mnge8frR3-CMtNRdIwyt0lsncsn2wzLe38` | `fXtVZVMSECOjGovOMyJRkxK7__DFxoSZOIFHvAbm5VU` |
-| 107 | `gBHx4PPzLmohge8frR2-DMtNSdJwzq1ntqnj2wzKe37` | `hYvWAXNTHDFPkjvPNzIKTlLL9__EGyrAKOIGJgBc7WWWV` |
+| 148 `cc-reality` :10000 | `6N9tOw3QOntBnALU0Xg-sAdzIYy5-E5LEv8tZXAd53w` | `DCbnS4mIPc1W2-wI0MGHhykwzf2nVuZvBadErSE6MxU` |
+| 148 `cc-xhttp` :8443 | `2J29hyLn-essLpmjd7jBfOiMlx_sGDvAI7gCb-t8Ino` | `WjI3RtUeYBHCKhdv96xfN8FT4yWux2RU_RMoq2zSDXc` |
+| 107 `rn-reality` :10000 | `kKWeFYkevzKDxaUjHWltihiU6xefJ5zZyVFKuBn8LnY` | `TU4gTCw7Ba9ZtclTKUnl9FDRcJYANyIpCVfgfKPtKQk` |
+| 107 `rn-xhttp` :8443 | `sMgSngQoqibHsNTFImFL6qcCndo0-OYZoc22dfxlKkg` | `sSd8pr2G9jBWX9OsTAaE2yPk9U0FjPnrWesID7tCn08` |
 
-> **警告**: 以上 keypair 仅供配置参考，生产环境请重新生成。
-> ```bash
-> sing-box generate reality-keypair
+**short_id 统一**: `a1b2c3d4`
+
+> ⚠️ **客户端 `public_key` 必须由服务端 `private_key` 派生，不能凭记忆或抄文档。**
+> 抄错的表现是服务端日志出现 `REALITY: processed invalid connection`，客户端表现为连接被 RST。
+>
+> 派生校验（本地 Python，已验证与 `sing-box generate reality-keypair` 输出一致）：
+> ```python
+> import base64
+> from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+> from cryptography.hazmat.primitives import serialization
+>
+> def pub_from_priv(b64priv):
+>     raw = base64.urlsafe_b64decode(b64priv + '=' * (-len(b64priv) % 4))
+>     k = X25519PrivateKey.from_private_bytes(raw)
+>     return base64.urlsafe_b64encode(k.public_key().public_bytes(
+>         serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode().rstrip('=')
+>
+> print(pub_from_priv("2J29hyLn-essLpmjd7jBfOiMlx_sGDvAI7gCb-t8Ino"))
+> # -> WjI3RtUeYBHCKhdv96xfN8FT4yWux2RU_RMoq2zSDXc
 > ```

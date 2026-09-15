@@ -1,0 +1,22 @@
+{
+  "inbounds": [{
+    "type": "hysteria2",
+    "tag": "rn-hy2",
+    "listen": "::",
+    "listen_port": 10001,
+    "users": [
+      {
+        "password": "5b697a6b-8e1c-44f7-be8d-0d7a064980c2"
+      }
+    ],
+    "ignore_client_bandwidth": true,
+    "tls": {
+      "enabled": true,
+      "alpn": ["h3"],
+      "min_version": "1.3",
+      "max_version": "1.3",
+      "certificate_path": "/etc/sing-box/cert/cert.pem",
+      "key_path": "/etc/sing-box/cert/private.key"
+    }
+  }]
+}
